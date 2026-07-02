@@ -8,6 +8,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Шматки">
 <link rel="manifest" href="manifest.json">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Шматки</title>
 <style>
@@ -21,6 +24,7 @@ body{margin:0;min-height:100vh;background:#000;color:#fff;font-family:-apple-sys
 .number.bump{transform:scale(1.06)}
 .paste{width:100%;border:0;border-radius:22px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;padding:18px;font-size:21px;font-weight:800;margin-bottom:12px;box-shadow:0 16px 40px rgba(124,58,237,.35)}
 .paste:active,.clear:active{transform:scale(.985)}
+.paste.loading{opacity:.75}
 textarea{width:100%;height:34vh;min-height:230px;background:#0f0f10;color:#fff;border:1px solid #242426;border-radius:24px;padding:16px;font-size:16px;resize:none;outline:none;line-height:1.42;margin-bottom:12px}
 textarea:focus{border-color:#555}
 .clear{width:100%;border:1px solid #242426;border-radius:18px;background:#141416;color:#b9b9bd;padding:14px;font-size:16px;font-weight:700}
@@ -31,43 +35,88 @@ textarea:focus{border-color:#555}
 <main class="app">
 <img class="logo" src="apple-touch-icon.png" alt="Шматки">
 <section class="result-card"><div class="label">Всього штук</div><div class="number" id="total">—</div></section>
-<button class="paste" id="pasteBtn">Вставити</button>
+<button class="paste" id="pasteBtn" type="button">Вставити</button>
 <textarea id="input" placeholder="Audi 2437MPS - 6&#10;BMW 0632LMS - 4&#10;Renault 9319NP - 5"></textarea>
-<button class="clear" id="clearBtn">Очистити</button>
-<div class="hint">Рахує числа після тире: - 6, -4, - 12. Рядки без тире просто пропускає.</div>
+<button class="clear" id="clearBtn" type="button">Очистити</button>
+<div class="hint" id="hint">Рахує числа після тире: - 6, -4, - 12.</div>
 </main>
 <script>
-const input=document.getElementById("input");
-const totalEl=document.getElementById("total");
-const pasteBtn=document.getElementById("pasteBtn");
-const clearBtn=document.getElementById("clearBtn");
+const input = document.getElementById("input");
+const totalEl = document.getElementById("total");
+const pasteBtn = document.getElementById("pasteBtn");
+const clearBtn = document.getElementById("clearBtn");
+const hint = document.getElementById("hint");
 
 function setTotal(value){
-  totalEl.textContent=value>0?value:"—";
+  totalEl.textContent = value > 0 ? value : "—";
   totalEl.classList.remove("bump");
   void totalEl.offsetWidth;
   totalEl.classList.add("bump");
 }
+
 function calculateTotal(){
-  const regex=/-\s*(\d+)/g;
-  let total=0, match;
-  while((match=regex.exec(input.value))!==null){total+=Number(match[1]);}
+  const regex = /-\s*(\d+)/g;
+  let total = 0;
+  let match;
+  while((match = regex.exec(input.value)) !== null){
+    total += Number(match[1]);
+  }
   setTotal(total);
 }
-async function pasteText(){
-  try{
-    const text=await navigator.clipboard.readText();
-    input.value=text;
-    input.scrollTop=0;
-    calculateTotal();
-  }catch(e){
-    input.focus();
-  }
+
+function putText(text){
+  input.value = text || "";
+  input.scrollTop = 0;
+  calculateTotal();
+  hint.textContent = "Вставлено і пораховано.";
+  setTimeout(() => hint.textContent = "Рахує числа після тире: - 6, -4, - 12.", 1500);
 }
-pasteBtn.addEventListener("click",pasteText);
-clearBtn.addEventListener("click",()=>{input.value="";calculateTotal();input.focus();});
-input.addEventListener("input",calculateTotal);
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));}
+
+function fallbackPaste(){
+  input.focus();
+  input.select();
+  hint.textContent = "iPhone не дав доступ. Натисни в полі стандартне “Вставити”.";
+}
+
+pasteBtn.addEventListener("click", function(){
+  pasteBtn.classList.add("loading");
+  pasteBtn.textContent = "Вставляю…";
+
+  if (!navigator.clipboard || !navigator.clipboard.readText) {
+    pasteBtn.classList.remove("loading");
+    pasteBtn.textContent = "Вставити";
+    fallbackPaste();
+    return;
+  }
+
+  // Важливо: readText викликається прямо після натискання, щоб iOS показав Allow Paste.
+  navigator.clipboard.readText()
+    .then(function(text){
+      putText(text);
+    })
+    .catch(function(){
+      fallbackPaste();
+    })
+    .finally(function(){
+      pasteBtn.classList.remove("loading");
+      pasteBtn.textContent = "Вставити";
+    });
+});
+
+clearBtn.addEventListener("click", function(){
+  input.value = "";
+  calculateTotal();
+  hint.textContent = "Очищено.";
+  setTimeout(() => hint.textContent = "Рахує числа після тире: - 6, -4, - 12.", 1200);
+});
+
+input.addEventListener("input", calculateTotal);
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("sw.js");
+  });
+}
 </script>
 </body>
 </html>
